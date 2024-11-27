@@ -1,0 +1,97 @@
+# Random Forest Regression and Partial Dependence Plot (PDP) Analysis
+# This script trains Random Forest models for predicting 20m and 40m sprint times,
+# evaluates model performance, computes feature importance scores, and generates PDPs.
+
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.inspection import PartialDependenceDisplay
+from sklearn.metrics import r2_score, mean_squared_error
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+# Load the dataset
+# Replace with the path to your actual data file
+selected_data = pd.read_csv('example.csv')
+
+# Split the data into independent variables (X) and dependent variables (y)
+# For both 20m and 40m sprint times
+X = selected_data.drop(['20m', '40m'], axis=1)
+y_20m = selected_data['20m']
+y_40m = selected_data['40m']
+
+# Initialize Random Forest models for 20m and 40m sprint predictions
+rf_model_20m = RandomForestRegressor(random_state=42)
+rf_model_40m = RandomForestRegressor(random_state=42)
+
+# Fit the models
+rf_model_20m.fit(X, y_20m)
+rf_model_40m.fit(X, y_40m)
+
+# Evaluate model performance
+def evaluate_model(model, X, y, label):
+    """
+    Evaluates a Random Forest model and prints R² and RMSE metrics.
+
+    Args:
+    model: Trained RandomForestRegressor
+    X: Independent variables
+    y: Dependent variable
+    label: A string label for identification
+    """
+    y_pred = model.predict(X)
+    r2 = r2_score(y, y_pred)
+    rmse = mean_squared_error(y, y_pred, squared=False)
+    print(f"{label} Model - R²: {r2:.3f}, RMSE: {rmse:.3f}")
+
+evaluate_model(rf_model_20m, X, y_20m, "20m Sprint")
+evaluate_model(rf_model_40m, X, y_40m, "40m Sprint")
+
+# Define features of interest for Partial Dependence Plots (PDP)
+features_of_interest = ['Peak_IMTP_REL', 'BJ_IMP_REL', 'REL_Nord L (N.kg-1)', 
+                        'VJ Height (cm)', 'REL_Nord R (N.kg-1)']
+
+# Define custom labels for features
+custom_labels = {
+    'Peak_IMTP_REL': 'Peak_IMTP_REL (N·kg$^{-1}$)',
+    'BJ_IMP_REL': 'SBJ (m·s$^{-1}$)',
+    'REL_Nord L (N.kg-1)': 'REL_Nord L (N·kg$^{-1}$)',
+    'VJ Height (cm)': 'VJ Height (cm)',
+    'REL_Nord R (N.kg-1)': 'REL_Nord R (N·kg$^{-1}$)'
+}
+
+# Function to create and save PDPs
+def create_pdp(model, X, features, title, filename):
+    """
+    Generates and saves Partial Dependence Plots.
+
+    Args:
+    model: Trained RandomForestRegressor
+    X: Independent variables
+    features: List of feature names to analyze
+    title: Plot title
+    filename: Output filename for the saved figure
+    """
+    fig, ax = plt.subplots(figsize=(12, 8))
+    display = PartialDependenceDisplay.from_estimator(
+        model, X, features, ax=ax, grid_resolution=50, n_jobs=1
+    )
+    # Customize plot labels and ticks
+    for feature_name, ax_i in zip(features, display.axes_.ravel()):
+        ax_i.set_xlabel(custom_labels.get(feature_name, feature_name))
+        ax_i.set_ylabel('Partial Dependence')
+        ax_i.yaxis.set_major_formatter(ticker.FormatStrFormatter('%.2f'))
+        # Specific formatting for BJ_IMP_REL
+        if feature_name == 'BJ_IMP_REL':
+            ax_i.xaxis.set_major_formatter(ticker.FormatStrFormatter('%.2f'))
+    plt.suptitle(title, fontsize=16)
+    plt.subplots_adjust(hspace=0.4)
+    plt.tight_layout()
+    plt.savefig(filename, dpi=600)
+    plt.close(fig)
+
+# Create PDPs for both 20m and 40m models
+create_pdp(rf_model_20m, X, features_of_interest, 'Partial Dependence Plots for 20m Sprint', 'PDP_20m.png')
+create_pdp(rf_model_40m, X, features_of_interest, 'Partial Dependence Plots for 40m Sprint', 'PDP_40m.png')
+
+# Summary
+print("Partial Dependence Plots saved as 'PDP_20m.png' and 'PDP_40m.png'.")
